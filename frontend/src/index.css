@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+/* Custom styles for OpenClaw Dashboard */
+:root {
+  --oc-primary: #7c3aed;
+  --oc-primary-dark: #6d28d9;
+  --oc-bg: #0f172a;
+  --oc-surface: #1e293b;
+  --oc-border: #334155;
+  --oc-text: #f8fafc;
+  --oc-text-muted: #94a3b8;
+}
+
+body {
+  background-color: var(--oc-bg);
+  color: var(--oc-text);
+}
+
+/* Status indicators */
+.status-online { color: #22c55e; }
+.status-offline { color: #ef4444; }
+.status-error { color: #f59e0b; }
+.status-unknown { color: #6b7280; }

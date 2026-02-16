@@ -1,0 +1,19 @@
+{
+  "name": "openclaw-dashboard-backend",
+  "version": "1.0.0",
+  "description": "Backend for OpenClaw Dashboard",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": ["openclaw", "dashboard", "api"],
+  "author": "TechInGenius",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
