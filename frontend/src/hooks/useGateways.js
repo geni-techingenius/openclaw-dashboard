@@ -76,3 +76,59 @@ export function useCronJobs(gatewayId) {
     enabled: !!gatewayId
   });
 }
+
+// Messages
+export function useMessages(sessionId) {
+  return useQuery({
+    queryKey: ['messages', sessionId],
+    queryFn: () => api.getMessages(sessionId),
+    enabled: !!sessionId
+  });
+}
+
+export function useSyncMessages(gatewayId, sessionKey) {
+  const queryClient = useQueryClient();
+  const sessionId = `${gatewayId}_${sessionKey}`;
+  
+  return useMutation({
+    mutationFn: () => api.syncMessages(gatewayId, sessionKey),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages', sessionId] });
+    }
+  });
+}
+
+// Usage Stats
+export function useUsageStats(gatewayId, days = 7) {
+  return useQuery({
+    queryKey: ['usage', gatewayId, days],
+    queryFn: () => api.getUsageStats(gatewayId, days),
+    enabled: !!gatewayId
+  });
+}
+
+export function useSyncUsage(gatewayId) {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: () => api.syncUsage(gatewayId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['usage', gatewayId] });
+    }
+  });
+}
+
+// Logs
+export function useLogs(gatewayId, options = {}) {
+  const { limit = 100, level = 'info', refetchInterval } = options;
+  
+  return useQuery({
+    queryKey: ['logs', gatewayId, limit, level],
+    queryFn: async () => {
+      const result = await api.getLogs(gatewayId, limit, level);
+      return result.logs || [];
+    },
+    enabled: !!gatewayId,
+    refetchInterval
+  });
+}

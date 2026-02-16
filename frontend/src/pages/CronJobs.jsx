@@ -27,11 +27,12 @@ export default function CronJobs() {
     switch (job.schedule_kind) {
       case 'cron':
         return `Cron: ${schedule.expr || '?'}`;
-      case 'every':
+      case 'every': {
         const ms = schedule.everyMs || 0;
         if (ms >= 3600000) return `Every ${ms / 3600000}h`;
         if (ms >= 60000) return `Every ${ms / 60000}m`;
         return `Every ${ms / 1000}s`;
+      }
       case 'at':
         return `At: ${new Date(schedule.atMs).toLocaleString()}`;
       default:

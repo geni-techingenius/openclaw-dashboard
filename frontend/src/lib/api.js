@@ -83,6 +83,33 @@ class ApiClient {
     });
   }
 
+  // Messages (Conversation History)
+  async getMessages(sessionId) {
+    return this.request(`/sessions/${sessionId}/messages`);
+  }
+
+  async syncMessages(gatewayId, sessionKey) {
+    return this.request(`/gateways/${gatewayId}/sessions/${encodeURIComponent(sessionKey)}/sync-messages`, {
+      method: 'POST'
+    });
+  }
+
+  // Usage Stats
+  async getUsageStats(gatewayId, days = 7) {
+    return this.request(`/gateways/${gatewayId}/usage?days=${days}`);
+  }
+
+  async syncUsage(gatewayId) {
+    return this.request(`/gateways/${gatewayId}/sync-usage`, {
+      method: 'POST'
+    });
+  }
+
+  // Logs
+  async getLogs(gatewayId, limit = 100, level = 'info') {
+    return this.request(`/gateways/${gatewayId}/logs?limit=${limit}&level=${level}`);
+  }
+
   // Health
   async health() {
     return this.request('/health');

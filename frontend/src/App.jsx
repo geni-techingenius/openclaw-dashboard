@@ -5,6 +5,8 @@ import Dashboard from './pages/Dashboard';
 import Gateways from './pages/Gateways';
 import Sessions from './pages/Sessions';
 import CronJobs from './pages/CronJobs';
+import Usage from './pages/Usage';
+import History from './pages/History';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +27,8 @@ export default function App() {
             <Route path="gateways" element={<Gateways />} />
             <Route path="sessions" element={<Sessions />} />
             <Route path="cron" element={<CronJobs />} />
+            <Route path="usage" element={<Usage />} />
+            <Route path="history" element={<History />} />
           </Route>
         </Routes>
       </BrowserRouter>

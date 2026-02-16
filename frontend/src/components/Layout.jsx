@@ -5,6 +5,8 @@ const navigation = [
   { name: 'Gateways', href: '/gateways' },
   { name: 'Sessions', href: '/sessions' },
   { name: 'Cron Jobs', href: '/cron' },
+  { name: 'Usage', href: '/usage' },
+  { name: 'History', href: '/history' },
 ];
 
 export default function Layout() {

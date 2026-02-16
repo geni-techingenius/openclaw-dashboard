@@ -294,6 +294,182 @@ app.post('/api/gateways/:id/sync-cron', async (req, res) => {
   }
 });
 
+// ========== MESSAGES (Conversation History) ==========
+
+// Get messages for a session
+app.get('/api/sessions/:sessionId/messages', (req, res) => {
+  const messages = db.prepare(`
+    SELECT * FROM messages 
+    WHERE session_id = ? 
+    ORDER BY timestamp ASC
+  `).all(req.params.sessionId);
+  res.json(messages);
+});
+
+// Sync messages from OpenClaw gateway
+app.post('/api/gateways/:id/sessions/:sessionKey/sync-messages', async (req, res) => {
+  const gateway = db.prepare('SELECT * FROM gateways WHERE id = ?').get(req.params.id);
+  if (!gateway) {
+    return res.status(404).json({ error: 'Gateway not found' });
+  }
+  
+  const sessionId = `${gateway.id}_${req.params.sessionKey}`;
+  
+  try {
+    const url = `${gateway.url}/sessions/${encodeURIComponent(req.params.sessionKey)}/history?limit=100`;
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${gateway.token}` }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const messages = data.messages || [];
+    
+    // Clear existing and insert fresh
+    db.prepare('DELETE FROM messages WHERE session_id = ?').run(sessionId);
+    
+    const insert = db.prepare(`
+      INSERT INTO messages (id, session_id, role, content, timestamp)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    
+    const insertMany = db.transaction((msgs) => {
+      for (let i = 0; i < msgs.length; i++) {
+        const m = msgs[i];
+        const id = `${sessionId}_${i}`;
+        insert.run(
+          id,
+          sessionId,
+          m.role || 'user',
+          typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+          m.timestamp ? Math.floor(new Date(m.timestamp).getTime() / 1000) : null
+        );
+      }
+    });
+    
+    insertMany(messages);
+    res.json({ synced: messages.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== USAGE STATS ==========
+
+// Get usage stats for a gateway
+app.get('/api/gateways/:id/usage', (req, res) => {
+  const { days = 7 } = req.query;
+  const stats = db.prepare(`
+    SELECT 
+      date,
+      SUM(input_tokens) as input_tokens,
+      SUM(output_tokens) as output_tokens,
+      SUM(cost_usd) as cost_usd,
+      model
+    FROM usage_stats 
+    WHERE gateway_id = ?
+      AND date >= date('now', '-' || ? || ' days')
+    GROUP BY date, model
+    ORDER BY date DESC
+  `).all(req.params.id, days);
+  res.json(stats);
+});
+
+// Sync usage from OpenClaw gateway (session status)
+app.post('/api/gateways/:id/sync-usage', async (req, res) => {
+  const gateway = db.prepare('SELECT * FROM gateways WHERE id = ?').get(req.params.id);
+  if (!gateway) {
+    return res.status(404).json({ error: 'Gateway not found' });
+  }
+  
+  try {
+    // Get session status which includes usage info
+    const url = `${gateway.url}/status`;
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${gateway.token}` }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Extract usage info if available
+    if (data.usage) {
+      const upsert = db.prepare(`
+        INSERT INTO usage_stats (gateway_id, session_id, date, input_tokens, output_tokens, cost_usd, model)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(gateway_id, date, model) DO UPDATE SET
+          input_tokens = excluded.input_tokens,
+          output_tokens = excluded.output_tokens,
+          cost_usd = excluded.cost_usd
+      `);
+      
+      upsert.run(
+        gateway.id,
+        null, // aggregated
+        today,
+        data.usage.inputTokens || 0,
+        data.usage.outputTokens || 0,
+        data.usage.costUsd || 0,
+        data.model || 'unknown'
+      );
+    }
+    
+    db.prepare("UPDATE gateways SET status = 'online', last_seen_at = strftime('%s', 'now') WHERE id = ?")
+      .run(gateway.id);
+    
+    res.json({ synced: true, data: data.usage || null });
+  } catch (err) {
+    db.prepare("UPDATE gateways SET status = 'error' WHERE id = ?").run(gateway.id);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== LOGS (via proxy) ==========
+
+// Get logs from gateway (proxied)
+app.get('/api/gateways/:id/logs', async (req, res) => {
+  const gateway = db.prepare('SELECT * FROM gateways WHERE id = ?').get(req.params.id);
+  if (!gateway) {
+    return res.status(404).json({ error: 'Gateway not found' });
+  }
+  
+  const { limit = 100, level = 'info' } = req.query;
+  
+  try {
+    // OpenClaw doesn't have a logs endpoint by default, so we'll try /status
+    // and return basic info. In production, you'd connect to actual log streams
+    const url = `${gateway.url}/status`;
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${gateway.token}` }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Return status as a log entry for now
+    const logs = [{
+      timestamp: new Date().toISOString(),
+      level: 'info',
+      message: `Gateway status: ${data.status || 'ok'}`,
+      meta: data
+    }];
+    
+    res.json({ logs });
+  } catch (err) {
+    res.status(500).json({ error: err.message, logs: [] });
+  }
+});
+
 // ========== HEALTH ==========
 
 app.get('/api/health', (req, res) => {
